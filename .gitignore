@@ -1,0 +1,9 @@
+*.bak
+*.pdf
+_*.txt
+_*.md
+_temp*
+banished_quest.json
+
+venv/
+__pycache__/
