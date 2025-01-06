@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vector_search"
+version = "0.1.0"
+authors = [
+  { name="Matthew B. Abbott", email="ttobbatam@gmail.com" },
+]
+description = "A rudimentary vector search implementation with clustering (the real goal was to practice creating a package)"
+requires-python = ">=3.7"
+dependencies = [
+    "numpy>=1.20.0",
+]
