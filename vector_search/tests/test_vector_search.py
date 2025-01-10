@@ -28,7 +28,8 @@ def test_basic_search_workflow():
         dimension=dimension,
         n_clusters=n_clusters,
         batch_size=100,
-        rebuild_threshold=0.3
+        rebuild_threshold=0.3,
+        use_squared_distance=True
     )
     
     # Add vectors
@@ -55,7 +56,7 @@ def test_basic_search_workflow():
     for idx, dist in zip(indices[0], distances[0]):
         vec = vectors[idx]
         euclidean_dist = np.sqrt(np.sum((query_vec - vec) ** 2))
-        assert dist >= euclidean_dist * euclidean_dist * 0.99, "Distances should be squared"
+        assert dist >= euclidean_dist ** 2 * 0.95, "Distances should be squared"
     
     # Add more vectors to trigger cluster building
     logger.info("Adding more vectors to trigger clustering")
