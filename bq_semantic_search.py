@@ -7,7 +7,7 @@ import json
 from typing import List, Dict
 import logging
 from pathlib import Path
-from vector_search.src.vector_search import SearchIndex  # Updated import path
+from vector_search import SearchIndex
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
