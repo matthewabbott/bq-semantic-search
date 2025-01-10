@@ -3,6 +3,9 @@ from typing import List, Tuple
 from .clustering import Cluster
 
 class SearchStrategy:
+    def __init__(self, use_squared_distance: bool = False):
+        self.use_squared_distance = use_squared_distance
+
     def search(self, query: np.ndarray, vectors: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
         raise NotImplementedError
 
@@ -13,7 +16,8 @@ class ExactSearch(SearchStrategy):
         dot_product = np.dot(query, vectors.T)
         
         distances = query_norm + vector_norm - 2 * dot_product
-        distances = np.sqrt(np.maximum(distances, 0))
+        if not self.use_squared_distance:
+            distances = np.sqrt(np.maximum(distances, 0))
         
         k = min(k, len(vectors))
         indices = np.argsort(distances, axis=1)[:, :k]
@@ -22,10 +26,12 @@ class ExactSearch(SearchStrategy):
         return distances, indices
 
 class ApproximateSearch(SearchStrategy):
-    def __init__(self, clusters: List[Cluster]):
+    def __init__(self, clusters: List[Cluster], use_squared_distance: bool = False):
+        super().__init__(use_squared_distance)
         self.clusters = clusters
         
     def search(self, query: np.ndarray, vectors: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
+        # For cluster assignment, always use squared distances as it's more efficient
         cluster_distances = []
         for cluster in self.clusters:
             dist = np.sum((query - cluster.centroid) ** 2, axis=1)
@@ -51,7 +57,8 @@ class ApproximateSearch(SearchStrategy):
             dot_product = np.dot(q, search_vectors.T)[0]
             
             distances = query_norm + vector_norm - 2 * dot_product
-            distances = np.sqrt(np.maximum(distances, 0))
+            if not self.use_squared_distance:
+                distances = np.sqrt(np.maximum(distances, 0))
             
             k_actual = min(k, len(search_indices))
             nearest = np.argsort(distances)[:k_actual]

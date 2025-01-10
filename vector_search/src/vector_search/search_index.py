@@ -5,10 +5,12 @@ from .clustering import Cluster, ClusterManager
 from .search_strategies import SearchStrategy, ExactSearch, ApproximateSearch
 
 class SearchIndex:
-    def __init__(self, dimension: int, n_clusters: int = 100, batch_size: int = 1000, rebuild_threshold: float = 0.3):
+    def __init__(self, dimension: int, n_clusters: int = 100, batch_size: int = 1000, 
+                 rebuild_threshold: float = 0.3, use_squared_distance: bool = False):
         self.dimension = dimension
         self.cluster_manager = ClusterManager(n_clusters, batch_size)
         self.rebuild_threshold = rebuild_threshold
+        self.use_squared_distance = use_squared_distance
         self.vectors = None
         self.clusters = []
         self.last_clustered_size = 0
@@ -49,9 +51,9 @@ class SearchIndex:
         
         strategy: SearchStrategy
         if not self.clusters:
-            strategy = ExactSearch()
+            strategy = ExactSearch(use_squared_distance=self.use_squared_distance)
         else:
-            strategy = ApproximateSearch(self.clusters)
+            strategy = ApproximateSearch(self.clusters, use_squared_distance=self.use_squared_distance)
             
         return strategy.search(query, self.vectors, k)
     

@@ -7,8 +7,9 @@ import json
 from typing import List, Dict
 import logging
 from pathlib import Path
-from vector_search import SearchIndex
+from vector_search.src.vector_search import SearchIndex  # Updated import path
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -31,43 +32,55 @@ class SemanticSearch:
         self.index = None
         self.posts = []
         logger.info(f"Initialized with model: {model_name}")
+    
+    def check_data_files(self, json_path: Path, embeddings_path: Path) -> None:
+        """Verify that all required data files exist."""
+        if not json_path.exists():
+            raise FileNotFoundError(
+                f"Posts data file not found at {json_path}. "
+                "Please ensure banished_quest.json is in the data directory."
+            )
+        
+        if not embeddings_path.exists():
+            raise FileNotFoundError(
+                f"Embeddings file not found at {embeddings_path}. "
+                "Please run compute_embeddings.py first."
+            )
         
     def load_data(self, filepath: str):
-            """Load and process data from the JSON file."""
-            try:
-                logger.info("Loading posts from JSON...")
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    self.posts = json.load(f)
-                logger.info(f"Loaded {len(self.posts)} posts")
-                
-                # Load pre-computed embeddings
-                embeddings_path = Path('data/embeddings.npy')
-                if not embeddings_path.exists():
-                    raise FileNotFoundError(
-                        "Embeddings file not found. Please run compute_embeddings.py first."
-                    )
-                
-                logger.info("Loading pre-computed embeddings...")
-                embeddings = np.load(str(embeddings_path))
-                
-                if len(embeddings) != len(self.posts):
-                    raise ValueError(
-                        f"Mismatch between number of embeddings ({len(embeddings)}) "
-                        f"and posts ({len(self.posts)})"
-                    )
-                
-                # Create search index
-                logger.info("Creating search index...")
-                dimension = embeddings.shape[1]
-                logger.info(f"Initializing SearchIndex with dimension {dimension}...")
-                self.index = SearchIndex(dimension=dimension)
-                logger.info("Adding embeddings to index...")
-                self.index.add(embeddings)
-                logger.info("Search index created successfully")
-                
-            except Exception as e:
-                logger.error(f"Error loading data: {str(e)}")
-                raise
+        """Load and process data from the JSON file."""
+        try:
+            json_path = Path(filepath)
+            embeddings_path = json_path.parent / 'embeddings.npy'
+            
+            # Check JSON and embeddings' existences
+            self.check_data_files(json_path, embeddings_path)
+            
+            logger.info("Loading posts from JSON...")
+            with open(json_path, 'r', encoding='utf-8') as f:
+                self.posts = json.load(f)
+            logger.info(f"Loaded {len(self.posts)} posts")
+            
+            logger.info("Loading pre-computed embeddings...")
+            embeddings = np.load(embeddings_path)
+            
+            if len(embeddings) != len(self.posts):
+                raise ValueError(
+                    f"Mismatch between number of embeddings ({len(embeddings)}) "
+                    f"and posts ({len(self.posts)})"
+                )
+            
+            logger.info("Creating search index...")
+            dimension = embeddings.shape[1]
+            logger.info(f"Initializing SearchIndex with dimension {dimension}")
+            self.index = SearchIndex(dimension=dimension)
+            logger.info("Adding embeddings to index...")
+            self.index.add(embeddings)
+            logger.info("Search index created successfully")
+            
+        except Exception as e:
+            logger.error(f"Error loading data: {str(e)}")
+            raise
 
     def search(self, query: str, k: int = 5) -> List[SearchResult]:
         """Search for similar posts."""
@@ -76,10 +89,11 @@ class SemanticSearch:
 
         # Encode query and search
         query_vector = self.model.encode([query])
-        distances, indices = self.index.search(query_vector, k)
+        squared_distances, indices = self.index.search(query_vector, k)
         
-        # Convert distances to similarities
-        # Note: [vector_search] returns actual distances, not square distances
+        # Convert squared distances to similarities
+        # Take sqrt of distances before computing similarity to get proper scaling
+        distances = np.sqrt(squared_distances)
         max_distance = np.max(distances[0]) + 1
         similarities = 1 - (distances[0] / max_distance)
 
@@ -123,11 +137,13 @@ search_engine = SemanticSearch()
 @app.on_event("startup")
 async def startup_event():
     """Load data on startup."""
-    data_path = Path("data/banished_quest.json")
-    if data_path.exists():
+    try:
+        data_path = Path("data/banished_quest.json")
         search_engine.load_data(str(data_path))
-    else:
-        logger.warning("No data file found at startup")
+    except Exception as e:
+        logger.error(f"Failed to load data at startup: {str(e)}")
+        # TODO: better failure behavior
+        raise
 
 @app.post("/search", response_model=List[SearchResult])
 async def search(query: SearchQuery):

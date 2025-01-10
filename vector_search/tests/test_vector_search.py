@@ -12,7 +12,7 @@ def generate_test_vectors(num_vectors: int, dimension: int) -> np.ndarray:
 
 def test_basic_search_workflow():
     """
-    Workflow of exact and approximate search.
+    Test both exact and approximate search with squared distances.
     """
     # Test parameters
     num_vectors = 1000
@@ -42,12 +42,20 @@ def test_basic_search_workflow():
     # Test exact search (before clusters are built)
     logger.info("Testing exact search")
     distances, indices = index.search(query, k=5)
-    logger.info(f"Exact search results - distances: {distances[0]}, indices: {indices[0]}")
+    logger.info(f"Exact search results - squared distances: {distances[0]}, indices: {indices[0]}")
     
     # Verify exact search results
     assert len(distances[0]) <= 5, "Exact search should return at most k results"
     assert len(indices[0]) <= 5, "Exact search should return at most k results"
     assert all(idx < len(vectors) for idx in indices[0]), "Exact search indices should be valid"
+    assert all(d >= 0 for d in distances[0]), "Squared distances should be non-negative"
+    
+    # Verify distances are squared (should be larger than Euclidean distances)
+    query_vec = query[0]
+    for idx, dist in zip(indices[0], distances[0]):
+        vec = vectors[idx]
+        euclidean_dist = np.sqrt(np.sum((query_vec - vec) ** 2))
+        assert dist >= euclidean_dist * euclidean_dist * 0.99, "Distances should be squared"
     
     # Add more vectors to trigger cluster building
     logger.info("Adding more vectors to trigger clustering")
@@ -57,12 +65,13 @@ def test_basic_search_workflow():
     # Test approximate search (after clusters are built)
     logger.info("Testing approximate search")
     distances, indices = index.search(query, k=5)
-    logger.info(f"Approximate search results - distances: {distances[0]}, indices: {indices[0]}")
+    logger.info(f"Approximate search results - squared distances: {distances[0]}, indices: {indices[0]}")
     
     # Verify approximate search results
     assert len(distances[0]) <= 5, "Approximate search should return at most k results"
     assert len(indices[0]) <= 5, "Approximate search should return at most k results"
     assert all(idx < len(vectors) + len(more_vectors) for idx in indices[0]), "Approximate search indices should be valid"
+    assert all(d >= 0 for d in distances[0]), "Squared distances should be non-negative"
 
 def test_empty_index():
     """Check behavior with empty index."""
@@ -81,21 +90,4 @@ def test_dimension_mismatch():
         index.add(wrong_dim_vectors)
 
 if __name__ == "__main__":
-    # Note: python -m pytest tests/ -v --log-cli-level=INFO
-    pytest.main([__file__, "-v"])
-    
-"""
-from vector_search directory:
-
-- Run all tests
-pytest tests/
-
-- Run with verbose output
-pytest tests/ -v
-
-- Run a specific test file
-pytest tests/test_vector_search.py
-
-- Run a specific test function
-pytest tests/test_vector_search.py::test_basic_search_workflow -v
-"""
+    pytest.main([__file__, "-v", "--log-cli-level=INFO"])
