@@ -9,7 +9,6 @@ import logging
 from pathlib import Path
 from vector_search import SearchIndex
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -34,34 +33,41 @@ class SemanticSearch:
         logger.info(f"Initialized with model: {model_name}")
         
     def load_data(self, filepath: str):
-        """Load and process data from the JSON file."""
-        try:
-            logger.info("Loading posts from JSON...")
-            with open(filepath, 'r', encoding='utf-8') as f:
-                self.posts = json.load(f)
-            logger.info(f"Loaded {len(self.posts)} posts")
-            
-            logger.info("Creating vector index...")
-            texts = [post['text'] for post in self.posts]
-            logger.info(f"Starting to encode {len(texts)} texts...")
-            batch_size = 8  # VPS too feeble and frail for more
-            embeddings = self.model.encode(
-                texts, 
-                show_progress_bar=True, 
-                batch_size=batch_size,
-                convert_to_numpy=True
-            )
-            logger.info(f"Finished encoding {len(texts)} texts, creating search index...")
-            
-            # Using knn from vector-search.py
-            dimension = embeddings.shape[1]
-            self.index = SearchIndex(dimension=dimension)
-            self.index.add(embeddings)
-            logger.info("Vector index created successfully")
-            
-        except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
-            raise
+            """Load and process data from the JSON file."""
+            try:
+                logger.info("Loading posts from JSON...")
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    self.posts = json.load(f)
+                logger.info(f"Loaded {len(self.posts)} posts")
+                
+                # Load pre-computed embeddings
+                embeddings_path = Path('data/embeddings.npy')
+                if not embeddings_path.exists():
+                    raise FileNotFoundError(
+                        "Embeddings file not found. Please run compute_embeddings.py first."
+                    )
+                
+                logger.info("Loading pre-computed embeddings...")
+                embeddings = np.load(str(embeddings_path))
+                
+                if len(embeddings) != len(self.posts):
+                    raise ValueError(
+                        f"Mismatch between number of embeddings ({len(embeddings)}) "
+                        f"and posts ({len(self.posts)})"
+                    )
+                
+                # Create search index
+                logger.info("Creating search index...")
+                dimension = embeddings.shape[1]
+                logger.info(f"Initializing SearchIndex with dimension {dimension}...")
+                self.index = SearchIndex(dimension=dimension)
+                logger.info("Adding embeddings to index...")
+                self.index.add(embeddings)
+                logger.info("Search index created successfully")
+                
+            except Exception as e:
+                logger.error(f"Error loading data: {str(e)}")
+                raise
 
     def search(self, query: str, k: int = 5) -> List[SearchResult]:
         """Search for similar posts."""
@@ -72,8 +78,8 @@ class SemanticSearch:
         query_vector = self.model.encode([query])
         distances, indices = self.index.search(query_vector, k)
         
-        # Convert distances to similarities (same as before)
-        # Note: Our implementation already returns actual distances, not squared distances
+        # Convert distances to similarities
+        # Note: [vector_search] returns actual distances, not square distances
         max_distance = np.max(distances[0]) + 1
         similarities = 1 - (distances[0] / max_distance)
 
