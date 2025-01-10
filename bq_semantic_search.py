@@ -43,12 +43,15 @@ class SemanticSearch:
             
             logger.info("Creating vector index...")
             texts = [post['text'] for post in self.posts]
+            logger.info(f"Starting to encode {len(texts)} texts...")
+            batch_size = 8  # VPS too feeble and frail for more
             embeddings = self.model.encode(
                 texts, 
                 show_progress_bar=True, 
-                batch_size=32,
+                batch_size=batch_size,
                 convert_to_numpy=True
             )
+            logger.info(f"Finished encoding {len(texts)} texts, creating search index...")
             
             # Using knn from vector-search.py
             dimension = embeddings.shape[1]
