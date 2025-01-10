@@ -73,7 +73,7 @@ class SemanticSearch:
             logger.info("Creating search index...")
             dimension = embeddings.shape[1]
             logger.info(f"Initializing SearchIndex with dimension {dimension}")
-            self.index = SearchIndex(dimension=dimension)
+            self.index = SearchIndex(dimension=dimension, use_squared_distance=False)
             logger.info("Adding embeddings to index...")
             self.index.add(embeddings)
             logger.info("Search index created successfully")
@@ -92,8 +92,7 @@ class SemanticSearch:
         squared_distances, indices = self.index.search(query_vector, k)
         
         # Convert squared distances to similarities
-        # Take sqrt of distances before computing similarity to get proper scaling
-        distances = np.sqrt(squared_distances)
+        distances, indices = self.index.search(query_vector, k)
         max_distance = np.max(distances[0]) + 1
         similarities = 1 - (distances[0] / max_distance)
 
