@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        bq-search {
+            display: block;
+            max-width: 800px;
+            margin: 20px auto;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .results {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .result-card {
+            padding: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .result-content {
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .result-metadata {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .similarity-score {
+            padding: 4px 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <!-- Demo usage -->
+    <bq-search></bq-search>
+
+    <script>
+        class BQSearch extends HTMLElement {
+            constructor() {
+                super();
+                this.attachShadow({ mode: 'open' });
+                this.shadowRoot.innerHTML = `
+                    <style>
+                        :host {
+                            display: block;
+                            max-width: 800px;
+                            margin: 20px auto;
+                            font-family: system-ui, -apple-system, sans-serif;
+                        }
+
+                        .search-container {
+                            margin-bottom: 20px;
+                        }
+
+                        .search-input {
+                            width: 100%;
+                            padding: 12px;
+                            font-size: 16px;
+                            border: 2px solid #ddd;
+                            border-radius: 6px;
+                            margin-bottom: 10px;
+                        }
+
+                        .results {
+                            display: flex;
+                            flex-direction: column;
+                            gap: 20px;
+                        }
+
+                        .result-card {
+                            padding: 16px;
+                            border: 1px solid #ddd;
+                            border-radius: 8px;
+                            background: white;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        }
+
+                        .result-header {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-bottom: 8px;
+                            font-size: 14px;
+                            color: #666;
+                        }
+
+                        .result-content {
+                            line-height: 1.5;
+                            margin-bottom: 12px;
+                        }
+
+                        .result-metadata {
+                            font-size: 14px;
+                            color: #666;
+                        }
+
+                        .similarity-score {
+                            padding: 4px 8px;
+                            background: #e9ecef;
+                            border-radius: 4px;
+                            font-size: 12px;
+                        }
+
+                        .loading {
+                            text-align: center;
+                            padding: 20px;
+                            color: #666;
+                        }
+                    </style>
+                    <div class="search-container">
+                        <input type="text" 
+                               class="search-input" 
+                               placeholder="Search Banished Quest content..."
+                               aria-label="Search input">
+                    </div>
+                    <div class="results"></div>
+                `;
+
+                this.searchInput = this.shadowRoot.querySelector('.search-input');
+                this.resultsContainer = this.shadowRoot.querySelector('.results');
+                
+                // Debounce the search to avoid too many requests
+                this.debounceTimeout = null;
+                this.searchInput.addEventListener('input', () => {
+                    clearTimeout(this.debounceTimeout);
+                    this.debounceTimeout = setTimeout(() => this.performSearch(), 300);
+                });
+            }
+
+            async performSearch() {
+                const query = this.searchInput.value.trim();
+                if (!query) {
+                    this.resultsContainer.innerHTML = '';
+                    return;
+                }
+
+                this.resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+
+                try {
+                    const response = await fetch('/api/bq-search/search', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            num_results: 5
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Search failed');
+                    }
+
+                    const results = await response.json();
+                    this.displayResults(results);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    this.resultsContainer.innerHTML = `
+                        <div class="result-card">
+                            <div class="result-content">
+                                An error occurred while searching. Please try again.
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            displayResults(results) {
+                if (!results.length) {
+                    this.resultsContainer.innerHTML = `
+                        <div class="result-card">
+                            <div class="result-content">
+                                No results found.
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                this.resultsContainer.innerHTML = results.map(result => `
+                    <div class="result-card">
+                        <div class="result-header">
+                            <span>${new Date(result.timestamp * 1000).toLocaleDateString()}</span>
+                            <span class="similarity-score">${(result.similarity * 100).toFixed(1)}% match</span>
+                        </div>
+                        <div class="result-content">
+                            ${this.escapeHtml(result.text)}
+                        </div>
+                        <div class="result-metadata">
+                            Posted by ${this.escapeHtml(result.author.name)} 
+                            in thread #${result.thread_id}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            escapeHtml(html) {
+                const div = document.createElement('div');
+                div.textContent = html;
+                return div.innerHTML;
+            }
+        }
+
+        customElements.define('bq-search', BQSearch);
+    </script>
+</body>
+</html>

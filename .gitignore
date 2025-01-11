@@ -5,6 +5,7 @@ _*.md
 _temp*
 banished_quest.json
 *.npy
+*.pkl
 
 venv/
 __pycache__/
