@@ -2,74 +2,16 @@
 <html>
 <head>
     <style>
+        /* Styles for external element */
         bq-search {
             display: block;
             max-width: 800px;
             margin: 20px auto;
             font-family: system-ui, -apple-system, sans-serif;
         }
-
-        .search-container {
-            margin-bottom: 20px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-
-        .results {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .result-card {
-            padding: 16px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .result-content {
-            line-height: 1.5;
-            margin-bottom: 12px;
-        }
-
-        .result-metadata {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .similarity-score {
-            padding: 4px 8px;
-            background: #e9ecef;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-        }
     </style>
 </head>
 <body>
-    <!-- Demo usage -->
     <bq-search></bq-search>
 
     <script>
@@ -77,91 +19,207 @@
             constructor() {
                 super();
                 this.attachShadow({ mode: 'open' });
+                this.includedTags = new Set();
+                this.excludedTags = new Set();
+                this.allTags = [];
+
+                // Internal component styles
+                const styles = `
+                    .search-container {
+                        margin-bottom: 20px;
+                    }
+
+                    .search-input {
+                        width: 100%;
+                        padding: 12px;
+                        font-size: 16px;
+                        border: 2px solid #ddd;
+                        border-radius: 6px;
+                        margin-bottom: 10px;
+                    }
+
+                    .results {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+
+                    .result-card {
+                        padding: 16px;
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        background: white;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }
+
+                    .result-header {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 8px;
+                        font-size: 14px;
+                        color: #666;
+                    }
+
+                    .result-content {
+                        line-height: 1.5;
+                        margin-bottom: 12px;
+                    }
+
+                    .result-metadata {
+                        font-size: 14px;
+                        color: #666;
+                    }
+
+                    .similarity-score {
+                        padding: 4px 8px;
+                        background: #e9ecef;
+                        border-radius: 4px;
+                        font-size: 12px;
+                    }
+
+                    .loading {
+                        text-align: center;
+                        padding: 20px;
+                        color: #666;
+                    }
+
+                    .tag-filters {
+                        margin-bottom: 1rem;
+                    }
+
+                    .tag {
+                        display: inline-flex;
+                        align-items: center;
+                        padding: 0.25rem 0.5rem;
+                        margin: 0.25rem;
+                        border-radius: 999px;
+                        font-size: 0.875rem;
+                        cursor: pointer;
+                    }
+
+                    .tag.include {
+                        background-color: #d1fae5;
+                        color: #065f46;
+                    }
+
+                    .tag.exclude {
+                        background-color: #fee2e2;
+                        color: #991b1b;
+                    }
+
+                    .tag.available {
+                        background-color: #e5e7eb;
+                        color: #374151;
+                    }
+
+                    .tag-actions {
+                        margin-left: 0.5rem;
+                        display: flex;
+                        gap: 0.25rem;
+                    }
+
+                    .tag-action {
+                        padding: 0.125rem 0.25rem;
+                        border-radius: 0.25rem;
+                        font-size: 0.75rem;
+                    }
+
+                    .tag-action.include {
+                        background-color: #34d399;
+                        color: white;
+                    }
+
+                    .tag-action.exclude {
+                        background-color: #f87171;
+                        color: white;
+                    }
+                `;
+
                 this.shadowRoot.innerHTML = `
-                    <style>
-                        :host {
-                            display: block;
-                            max-width: 800px;
-                            margin: 20px auto;
-                            font-family: system-ui, -apple-system, sans-serif;
-                        }
-
-                        .search-container {
-                            margin-bottom: 20px;
-                        }
-
-                        .search-input {
-                            width: 100%;
-                            padding: 12px;
-                            font-size: 16px;
-                            border: 2px solid #ddd;
-                            border-radius: 6px;
-                            margin-bottom: 10px;
-                        }
-
-                        .results {
-                            display: flex;
-                            flex-direction: column;
-                            gap: 20px;
-                        }
-
-                        .result-card {
-                            padding: 16px;
-                            border: 1px solid #ddd;
-                            border-radius: 8px;
-                            background: white;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                        }
-
-                        .result-header {
-                            display: flex;
-                            justify-content: space-between;
-                            margin-bottom: 8px;
-                            font-size: 14px;
-                            color: #666;
-                        }
-
-                        .result-content {
-                            line-height: 1.5;
-                            margin-bottom: 12px;
-                        }
-
-                        .result-metadata {
-                            font-size: 14px;
-                            color: #666;
-                        }
-
-                        .similarity-score {
-                            padding: 4px 8px;
-                            background: #e9ecef;
-                            border-radius: 4px;
-                            font-size: 12px;
-                        }
-
-                        .loading {
-                            text-align: center;
-                            padding: 20px;
-                            color: #666;
-                        }
-                    </style>
+                    <style>${styles}</style>
                     <div class="search-container">
                         <input type="text" 
                                class="search-input" 
                                placeholder="Search Banished Quest content..."
                                aria-label="Search input">
+                        <div class="tag-filters"></div>
                     </div>
                     <div class="results"></div>
                 `;
 
                 this.searchInput = this.shadowRoot.querySelector('.search-input');
                 this.resultsContainer = this.shadowRoot.querySelector('.results');
+                this.tagContainer = this.shadowRoot.querySelector('.tag-filters');
                 
-                // Debounce the search to avoid too many requests
                 this.debounceTimeout = null;
                 this.searchInput.addEventListener('input', () => {
                     clearTimeout(this.debounceTimeout);
                     this.debounceTimeout = setTimeout(() => this.performSearch(), 300);
                 });
+
+                this.loadTags();
+            }
+
+            async loadTags() {
+                try {
+                    const response = await fetch('/api/bq-search/tags');
+                    if (!response.ok) throw new Error('Failed to load tags');
+                    this.allTags = await response.json();
+                    this.renderTags();
+                } catch (error) {
+                    console.error('Error loading tags:', error);
+                }
+            }
+
+            renderTags() {
+                this.tagContainer.innerHTML = this.allTags.map(tag => {
+                    if (this.includedTags.has(tag)) {
+                        return `
+                            <span class="tag include">
+                                ${tag}
+                                <button onclick="this.getRootNode().host.removeTag('${tag}')" class="tag-action">×</button>
+                            </span>
+                        `;
+                    } else if (this.excludedTags.has(tag)) {
+                        return `
+                            <span class="tag exclude">
+                                ${tag}
+                                <button onclick="this.getRootNode().host.removeTag('${tag}')" class="tag-action">×</button>
+                            </span>
+                        `;
+                    } else {
+                        return `
+                            <span class="tag available">
+                                ${tag}
+                                <span class="tag-actions">
+                                    <button onclick="this.getRootNode().host.includeTag('${tag}')" class="tag-action include">+</button>
+                                    <button onclick="this.getRootNode().host.excludeTag('${tag}')" class="tag-action exclude">-</button>
+                                </span>
+                            </span>
+                        `;
+                    }
+                }).join('');
+            }
+
+            includeTag(tag) {
+                this.includedTags.add(tag);
+                this.excludedTags.delete(tag);
+                this.renderTags();
+                this.performSearch();
+            }
+
+            excludeTag(tag) {
+                this.excludedTags.add(tag);
+                this.includedTags.delete(tag);
+                this.renderTags();
+                this.performSearch();
+            }
+
+            removeTag(tag) {
+                this.includedTags.delete(tag);
+                this.excludedTags.delete(tag);
+                this.renderTags();
+                this.performSearch();
             }
 
             async performSearch() {
@@ -181,7 +239,9 @@
                         },
                         body: JSON.stringify({
                             query: query,
-                            num_results: 5
+                            num_results: 5,
+                            include_tags: this.includedTags.size > 0 ? Array.from(this.includedTags) : undefined,
+                            exclude_tags: this.excludedTags.size > 0 ? Array.from(this.excludedTags) : undefined
                         })
                     });
 
@@ -225,8 +285,13 @@
                             ${this.escapeHtml(result.text)}
                         </div>
                         <div class="result-metadata">
-                            Posted by ${this.escapeHtml(result.author.name)} 
-                            in thread #${result.thread_id}
+							Posted by ${this.escapeHtml(result.author.name)} 
+							in <a href="${result.archive_url}">thread #${result.thread_id}</a>
+							<div>
+								${result.metadata.tags.map(tag => `
+									<span class="tag available">${tag}</span>
+								`).join('')}
+							</div>
                         </div>
                     </div>
                 `).join('');

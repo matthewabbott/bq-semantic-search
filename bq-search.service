@@ -1,0 +1,12 @@
+[Unit]
+Description=Banished Quest Search Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/bq-semantic-search
+Environment="PATH=/root/bq-semantic-search/venv/bin"
+ExecStart=/root/bq-semantic-search/venv/bin/uvicorn bq_search.api:app --host 127.0.0.1 --port 8000 --workers 1
+
+[Install]
+WantedBy=multi-user.target
