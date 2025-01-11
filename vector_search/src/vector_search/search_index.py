@@ -20,7 +20,7 @@ class SearchIndex:
         if vectors.shape[1] != self.dimension:
             raise ValueError(f"Expected vectors of dimension {self.dimension}, got {vectors.shape[1]}")
         
-        vectors = vectors.astype(np.float16)
+        vectors = vectors.astype(np.float32)
             
         if self.vectors is None:
             self.vectors = vectors
@@ -47,7 +47,7 @@ class SearchIndex:
         if query.shape[1] != self.dimension:
             raise ValueError(f"Expected query vectors of dimension {self.dimension}, got {query.shape[1]}")
             
-        query = query.astype(np.float16)
+        query = query.astype(np.float32)
         
         strategy: SearchStrategy
         if not self.clusters:
