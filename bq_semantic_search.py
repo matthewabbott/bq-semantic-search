@@ -4,12 +4,12 @@ from pydantic import BaseModel, Field
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import json
+import pickle
 from typing import List, Dict
 import logging
 from pathlib import Path
 from vector_search import SearchIndex
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -46,14 +46,45 @@ class SemanticSearch:
                 f"Embeddings file not found at {embeddings_path}. "
                 "Please run compute_embeddings.py first."
             )
-        
+    
+    def load_or_create_index(self, embeddings: np.ndarray, index_path: Path) -> SearchIndex:
+        """Load serialized index if it exists, otherwise create and serialize new index."""
+        try:
+            if index_path.exists():
+                logger.info("Found serialized index. Loading...")
+                with open(index_path, 'rb') as f:
+                    return pickle.load(f)
+            
+            logger.info("No serialized index found. Creating new index...")
+            dimension = embeddings.shape[1]
+            logger.info(f"Initializing SearchIndex with dimension {dimension}")
+            index = SearchIndex(dimension=dimension, use_squared_distance=False)
+            
+            logger.info("Adding embeddings to index...")
+            index.add(embeddings)
+            logger.info("Search index created successfully")
+            
+            # Serialize the index
+            logger.info("Serializing index for future use...")
+            with open(index_path, 'wb') as f:
+                pickle.dump(index, f)
+            logger.info(f"Index serialized to {index_path}")
+            
+            return index
+            
+        except Exception as e:
+            logger.error(f"Error handling index: {str(e)}")
+            raise
+    
     def load_data(self, filepath: str):
         """Load and process data from the JSON file."""
         try:
             json_path = Path(filepath)
-            embeddings_path = json_path.parent / 'embeddings.npy'
+            data_dir = json_path.parent
+            embeddings_path = data_dir / 'embeddings.npy'
+            index_path = data_dir / 'search_index.pkl'
             
-            # Check JSON and embeddings' existences
+            # Check JSON and embeddings exist
             self.check_data_files(json_path, embeddings_path)
             
             logger.info("Loading posts from JSON...")
@@ -70,13 +101,8 @@ class SemanticSearch:
                     f"and posts ({len(self.posts)})"
                 )
             
-            logger.info("Creating search index...")
-            dimension = embeddings.shape[1]
-            logger.info(f"Initializing SearchIndex with dimension {dimension}")
-            self.index = SearchIndex(dimension=dimension, use_squared_distance=False)
-            logger.info("Adding embeddings to index...")
-            self.index.add(embeddings)
-            logger.info("Search index created successfully")
+            # Load or create the search index
+            self.index = self.load_or_create_index(embeddings, index_path)
             
         except Exception as e:
             logger.error(f"Error loading data: {str(e)}")
@@ -89,10 +115,9 @@ class SemanticSearch:
 
         # Encode query and search
         query_vector = self.model.encode([query])
-        squared_distances, indices = self.index.search(query_vector, k)
-        
-        # Convert squared distances to similarities
         distances, indices = self.index.search(query_vector, k)
+        
+        # Convert distances to similarities
         max_distance = np.max(distances[0]) + 1
         similarities = 1 - (distances[0] / max_distance)
 
@@ -118,7 +143,8 @@ class SemanticSearch:
 app = FastAPI(
     title="Banished Quest Semantic Search",
     description="Search through Banished Quest content using semantic similarity",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/bq-search"
 )
 
 # Add CORS middleware
@@ -141,7 +167,6 @@ async def startup_event():
         search_engine.load_data(str(data_path))
     except Exception as e:
         logger.error(f"Failed to load data at startup: {str(e)}")
-        # TODO: better failure behavior
         raise
 
 @app.post("/search", response_model=List[SearchResult])
